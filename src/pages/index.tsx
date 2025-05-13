@@ -66,7 +66,7 @@ export default function Home() {
       maybeRecord();
     };
 
-    
+
     const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
     micRef.current = mic;  pc.addTrack(mic.getAudioTracks()[0]);  maybeRecord();
 
@@ -104,25 +104,71 @@ export default function Home() {
   };
 
   /* ─ stop ─ */
-  const stopSession = async () => {
-    recRef.current?.stop();
-    const audio = new Blob(chunksRef.current, { type: 'audio/webm' });
-    const transcript = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' });
+  // const stopSession = async () => {
+  //   recRef.current?.stop();
+  //   const audio = new Blob(chunksRef.current, { type: 'audio/webm' });
+  //   const transcript = new Blob([JSON.stringify(events, null, 2)], { type: 'application/json' });
 
-    if (keys) {
-      const { urls } = await fetch('/api/presign', {
-        method:'POST', body: JSON.stringify({ keys: [keys.recKey, keys.trKey] })
-      }).then(r => r.json());
-      await Promise.all([
-        fetch(urls[0], { method:'PUT', body: audio }),
-        fetch(urls[1], { method:'PUT', body: transcript }),
-      ]);
-    }
-    dcRef.current?.close(); pcRef.current?.close();
-    micRef.current?.getTracks().forEach(t => t.stop());
-    recorderStarted.current = false; setActive(false);
+  //   if (keys) {
+  //     const { urls } = await fetch('/api/presign', {
+  //       method:'POST', body: JSON.stringify({ keys: [keys.recKey, keys.trKey] })
+  //     }).then(r => r.json());
+  //     await Promise.all([
+  //       fetch(urls[0], { method:'PUT', body: audio }),
+  //       fetch(urls[1], { method:'PUT', body: transcript }),
+  //     ]);
+  //   }
+  //   dcRef.current?.close(); pcRef.current?.close();
+  //   micRef.current?.getTracks().forEach(t => t.stop());
+  //   recorderStarted.current = false; setActive(false);
+  // };
+
+  const stopSession = async () => {
+    if (!recRef.current) return;
+  
+    // Wrap the whole workflow in a Promise that resolves after MediaRecorder fires “stop”
+    await new Promise<void>((resolve) => {
+      // 1️⃣  When MediaRecorder finishes, we build blobs & upload
+      recRef.current!.addEventListener(
+        'stop',
+        async () => {
+          const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          const transcriptBlob = new Blob(
+            [JSON.stringify(events, null, 2)],
+            { type: 'application/json' }
+          );
+  
+          if (keys) {
+            const { urls } = await fetch('/api/presign', {
+              method: 'POST',
+              body: JSON.stringify({ keys: [keys.recKey, keys.trKey] }),
+            }).then((r) => r.json());
+  
+            await Promise.all([
+              fetch(urls[0], { method: 'PUT', body: audioBlob }),
+              fetch(urls[1], { method: 'PUT', body: transcriptBlob }),
+            ]);
+          }
+  
+          resolve(); // everything done → resolve outer Promise
+        },
+        { once: true } // fire exactly once
+      );
+  
+      // 2️⃣  Trigger recording stop (final dataavailable will happen first)
+      recRef.current!.stop();
+    });
+  
+    // 3️⃣  Clean up RTC & local state
+    dcRef.current?.close();
+    pcRef.current?.close();
+    micRef.current?.getTracks().forEach((t) => t.stop());
+  
+    recorderStarted.current = false;
+    setActive(false);
   };
 
+  
   /* ─ UI ─ */
   return (
     <>
