@@ -17,7 +17,7 @@ try {
           instructions: prompt,
           input_audio_transcription: {
             model: "whisper-1",
-            language: "en"
+            language: "ta"
           },
         }),
       },

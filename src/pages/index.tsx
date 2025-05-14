@@ -14,20 +14,20 @@ interface ChatMsg { role: 'user' | 'assistant'; text: string }
       /^(\|.+\|)[\r\n]+(\|[ :\-|]+\|)[\r\n]+((\|.*\|[\r\n]+)+)/gm;
   
     md = md.replace(TABLE_RE, (_m, head, _sep, body) => {
-      const headHtml = head
+      const headHtml: string = head
         .slice(1, -1)                     // trim outer pipes
         .split('|')
-        .map(c => `<th>${c.trim()}</th>`)
+        .map((c: string): string => `<th>${c.trim()}</th>`)
         .join('');
   
-      const rowsHtml = body
+      const rowsHtml: string = body
         .trim()
         .split('\n')
-        .map(r =>
+        .map((r: string): string =>
           '<tr>' +
           r.slice(1, -1)                  // trim outer pipes
            .split('|')
-           .map(c => `<td>${c.trim()}</td>`).join('') +
+           .map((c: string): string => `<td>${c.trim()}</td>`).join('') +
           '</tr>')
         .join('');
   
@@ -49,10 +49,12 @@ export default function Home() {
   const [name,  setName]     = useState('');
   const [modal, setModal]    = useState(true);
   const [active,setActive]   = useState(false);
+  const [isStarting,setStart]  = useState(false);   // NEW
   const [isStopping,setStop] = useState(false);
+  const [finished,   setFinished]=useState(false);
 
   const [keys, setKeys]      = useState<Keys|null>(null);
-  const [events,setEvents]   = useState<any[]>([]);
+  const [events,setEvents]   = useState<ServerEvent[]>([]);
   const [msgs, setMsgs]      = useState<ChatMsg[]>([]);
 
   /* – refs – */
@@ -93,7 +95,19 @@ export default function Home() {
   }
 
   /* – server event → messages – */
-  function handleServerEvent(ev: any) {
+  interface ServerEvent {
+    type: string;
+    transcript?: string;
+    response?: {
+      output?: Array<{
+        content?: Array<{
+          transcript?: string;
+        }>;
+      }>;
+    };
+  }
+
+  function handleServerEvent(ev: ServerEvent) {
     setEvents(p=>[...p, ev]);
 
     if (ev.type === 'conversation.item.input_audio_transcription.completed') {
@@ -109,6 +123,8 @@ export default function Home() {
 
   /* – START – */
   const startSession = async () => {
+    setFinished(false);
+    setStart(true);                               // spinner ON
     /* 0) keys for S3 objects */
     const init = await fetch('/api/init',{
       method:'POST', body:JSON.stringify({ name })
@@ -153,6 +169,7 @@ export default function Home() {
     await pc.setRemoteDescription({ type:'answer', sdp:answerSdp });
 
     dc.onopen = () => {
+      setStart(false);                            // spinner OFF
       setActive(true); setEvents([]); setMsgs([]);
 
       dc.send(JSON.stringify({
@@ -217,6 +234,8 @@ export default function Home() {
     micRef.current?.getTracks().forEach(t=>t.stop());
 
     startedRef.current=false; setActive(false); setStop(false);
+    setFinished(true);             // show “Assignment Complete” & lock buttons
+
   };
 
   /* – render – */
@@ -224,15 +243,19 @@ export default function Home() {
     <>
       {modal && <NameModal name={name} setName={setName} onConfirm={()=>setModal(false)} />}
 
-      <header className="topbar"><h1>Realtime Voice Console</h1></header>
+      <header className="topbar"><h1>SP Tamil Pilot</h1></header>
 
       <div className="wrapper">
         {/* sidebar */}
         <aside className="sidebar">
-          <button className="btn start" disabled={active||!name} onClick={startSession}>Start</button>
-          <button className="btn stop"  disabled={!active||isStopping} onClick={stopSession}>
+          {/* <button className="btn start" disabled={active||!name} onClick={startSession}>Start</button> */}
+          <button className="btn start" disabled={active || !name || isStarting || finished} onClick={startSession}>
+          {isStarting ? 'Starting…' : 'Start'}
+        </button>
+          <button className="btn stop"  disabled={!active || isStopping || finished} onClick={stopSession}>
             {isStopping?'Stopping…':'Stop'}
           </button>
+          {finished && <div className="done-banner">Assignment&nbsp;Complete ✔</div>}
 
           {/* full markdown prompt */}
           <div className="prompt" dangerouslySetInnerHTML={{__html: mdToHtml(PROMPT_MD)}} />
