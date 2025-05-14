@@ -1,10 +1,48 @@
 import { useRef, useState, useEffect } from 'react';
 import NameModal from '@/components/NameModal';
+import { PROMPT_MD } from '@/lib/constant';
 
 /* ── types ------------------------------------------------------------ */
 interface Keys  { recKey: string; trKey: string }
 interface ChatMsg { role: 'user' | 'assistant'; text: string }
 
+/* ultra-light Markdown ➜ HTML
+   ─ supports: h2, h3, **bold**, *italics*, tables, <br> */
+   function mdToHtml(md: string) {
+    /* tables -------------- */
+    const TABLE_RE =
+      /^(\|.+\|)[\r\n]+(\|[ :\-|]+\|)[\r\n]+((\|.*\|[\r\n]+)+)/gm;
+  
+    md = md.replace(TABLE_RE, (_m, head, _sep, body) => {
+      const headHtml = head
+        .slice(1, -1)                     // trim outer pipes
+        .split('|')
+        .map(c => `<th>${c.trim()}</th>`)
+        .join('');
+  
+      const rowsHtml = body
+        .trim()
+        .split('\n')
+        .map(r =>
+          '<tr>' +
+          r.slice(1, -1)                  // trim outer pipes
+           .split('|')
+           .map(c => `<td>${c.trim()}</td>`).join('') +
+          '</tr>')
+        .join('');
+  
+      return `<table><thead><tr>${headHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    });
+  
+    /* headings / emphasis / line-breaks */
+    return md
+      .replace(/^### (.*)$/gim, '<h3>$1</h3>')
+      .replace(/^## (.*)$/gim, '<h2>$1</h2>')
+      .replace(/\*\*(.*?)\*\*/g,  '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g,      '<em>$1</em>')
+      .replace(/\n/g, '<br>');
+  }
+  
 /* ── component -------------------------------------------------------- */
 export default function Home() {
   /* – UI / session state – */
@@ -191,13 +229,13 @@ export default function Home() {
       <div className="wrapper">
         {/* sidebar */}
         <aside className="sidebar">
-          <button className="btn start"
-                  disabled={active||!name}
-                  onClick={startSession}>Start</button>
+          <button className="btn start" disabled={active||!name} onClick={startSession}>Start</button>
+          <button className="btn stop"  disabled={!active||isStopping} onClick={stopSession}>
+            {isStopping?'Stopping…':'Stop'}
+          </button>
 
-          <button className="btn stop"
-                  disabled={!active||isStopping}
-                  onClick={stopSession}>{isStopping?'Stopping…':'Stop'}</button>
+          {/* full markdown prompt */}
+          <div className="prompt" dangerouslySetInnerHTML={{__html: mdToHtml(PROMPT_MD)}} />
 
           <details>
             <summary>Raw events</summary>
@@ -209,12 +247,9 @@ export default function Home() {
 
         {/* transcript */}
         <section ref={transcriptBox} className="transcript">
-          {msgs.length===0 && <p className="empty-state">
-            Press <b>Start</b> to begin talking.</p>}
+          {msgs.length===0 && <p className="empty-state">Press <b>Start</b> to begin talking.</p>}
           {msgs.map((m,i)=>(
-            <div key={i} className={`bubble ${m.role==='user'?'user':'ai'}`}>
-              {m.text}
-            </div>
+            <div key={i} className={`bubble ${m.role==='user'?'user':'ai'}`}>{m.text}</div>
           ))}
         </section>
       </div>

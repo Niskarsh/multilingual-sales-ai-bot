@@ -23,15 +23,23 @@
   
   /* grid layout ----------------------------------------------------------- */
   .wrapper {
-    position: absolute; inset: 56px 0 0;            /* below topbar */
-    display: grid; grid-template-columns: 240px 1fr;
+    position: absolute; inset: 56px 0 0;
+    display: grid;
+    /*  left panel takes up to 40 % of viewport but never less than 280 px  */
+    grid-template-columns: minmax(280px, 40%) 1fr;
     height: calc(100% - 56px);
+    overflow: hidden;            /* ← page itself never scrolls */
   }
   
   /* sidebar --------------------------------------------------------------- */
   .sidebar {
     background: var(--clr-panel); border-right: 1px solid var(--clr-border);
-    padding: 24px; box-sizing: border-box;
+    padding: 24px;
+    /* make children stack vertically and let one grow */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;              /* ← give the column its own scrollbar */
   }
   .btn {
     width: 100%; padding: 10px 0; margin-bottom: 16px;
@@ -53,6 +61,10 @@
   /* transcript panel ------------------------------------------------------ */
   .transcript {
     padding: 24px; overflow-y: auto; box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;            /* ← gets its own scrollbar */
+    height: 100%;
   }
   .bubble {
     max-width: 65%; padding: 10px 14px;
@@ -94,5 +106,17 @@
     background:var(--clr-accent);
   }
   .modal-box button:disabled{opacity:.4; cursor:default;}
+
+  .prompt {
+    flex: 1 1 auto;                 /* ← fill the remaining column height */
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.35;
+    margin: 16px 0;                 /* space above Raw-events details */
+  }
+  .prompt h2 { margin: 12px 0 6px }
+  .prompt h3 { margin: 10px 0 4px; font-size: 14px }
+  .prompt table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
+  .prompt th,.prompt td{border:1px solid var(--clr-border);padding:4px 6px;text-align:left}
   
   
